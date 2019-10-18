@@ -4,71 +4,53 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"net/http"
 	"strings"
 )
 
-// Kind is a subtype of string to scope error codes nicely
-type Kind string
+// New E
+func New(
+	ID string,
+	Message string,
+	Err error,
+	kvs ...string,
+) *Error {
 
-const (
-	// ECONFLICT means action cannot be performed
-	ECONFLICT Kind = "conflict"
-	// EINTERNAL means internal error
-	EINTERNAL Kind = "internal"
-	// EINVALID means validation failed
-	EINVALID Kind = "invalid"
-	// ENOTFOUND means entity does not exist
-	ENOTFOUND Kind = "not_found"
-)
-
-var toHTTPCode = map[Kind]int{
-	ECONFLICT: http.StatusBadRequest,
-	EINTERNAL: http.StatusInternalServerError,
-	EINVALID:  http.StatusBadRequest,
-	ENOTFOUND: http.StatusBadRequest,
+	meta := map[string]string{}
+	if len(kvs)%2 == 0 {
+		prev := ""
+		for i, val := range kvs {
+			if i%2 == 0 {
+				meta[val] = ""
+			} else {
+				meta[prev] = val
+			}
+			prev = val
+		}
+	} else {
+		fmt.Println("ERROR: Number of KVs not even")
+	}
+	err := &Error{
+		ID:      ID,
+		Message: Message,
+		Err:     Err,
+		Meta:    meta,
+	}
+	return err
 }
 
 // Error defines a standard application error.
 type Error struct {
-	// Machine-readable error code.
-	Code Kind `json:"code"`
+	// Error ID for grepping purposes
+	ID string `json:"id"`
 
 	// Human-readable message.
 	Message string `json:"message"`
-
-	// Logical operation and nested error.
-	Op string `json:"op"`
 
 	// Base error
 	Err error `json:"err"`
 
 	// Metadata from the app
 	Meta map[string]string `json:"meta"`
-}
-
-// HTTPCode returns the http code of the root error, if available. Otherwise returns 500.
-func HTTPCode(err error) int {
-	if err == nil {
-		return 0
-	} else if e, ok := err.(*Error); ok && e.Code != "" {
-		return toHTTPCode[e.Code]
-	} else if ok && e.Err != nil {
-		return HTTPCode(e.Err)
-	}
-	return http.StatusInternalServerError
-}
-
-// ErrorCode returns the code of the root error, if available. Otherwise returns EINTERNAL.
-func ErrorCode(err error) Kind {
-	if err == nil {
-		return ""
-	} else if e, ok := err.(*Error); ok && e.Code != "" {
-		return e.Code
-	} else if ok && e.Err != nil {
-		return ErrorCode(e.Err)
-	}
-	return EINTERNAL
 }
 
 // ErrorMessage returns the human-readable message of the error, if available.
@@ -89,19 +71,11 @@ func ErrorMessage(err error) string {
 func (e *Error) Error() string {
 	var buf bytes.Buffer
 
-	// Print the current operation in our stack, if any.
-	if e.Op != "" {
-		fmt.Fprintf(&buf, "%s: ", e.Op)
-	}
-
 	// If wrapping an error, print its Error() message.
 	// Otherwise print the error code & message.
 	if e.Err != nil {
 		buf.WriteString(e.Err.Error())
 	} else {
-		if e.Code != "" {
-			fmt.Fprintf(&buf, "<%s> ", e.Code)
-		}
 		if len(e.Meta) > 0 {
 			metaArr := []string{}
 			for k, v := range e.Meta {
