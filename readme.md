@@ -2,6 +2,8 @@
 
 # E
 
+*This package is under review*
+
 Structured errors package, inspired mostly by [Ben Johnson](https://middlemost.com/failure-is-your-domain/) and [Upspin](https://github.com/upspin/upspin) with some modifications (extra meta data, JSON marshalling, type coercions, HTTP codes).
 
 ```bash
